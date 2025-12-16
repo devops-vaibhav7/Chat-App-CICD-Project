@@ -1,30 +1,43 @@
-#!/bin/bash
+#!/bin/sh
+set -e
 
-if [ ! -f "vendor/autoload.php" ]; then
-    composer install --no-progress --no-interaction
-fi
 
+echo "Container role: ${CONTAINER_ROLE}"
+
+
+# Ensure env exists
 if [ ! -f ".env" ]; then
-    echo "Creating env file for env $APP_ENV"
-    cp .env.example .env
-else
-    echo "env file exists."
+cp .env.example .env
 fi
 
-role=${CONTAINER_ROLE:-app}
 
-if [ "$role" = "app" ]; then
-    php artisan migrate
-    php artisan key:generate
-    php artisan cache:clear
-    php artisan config:clear
-    php artisan route:clear
-    php artisan serve --port=$PORT --host=0.0.0.0 --env=.env
-    exec docker-php-entrypoint "$@"
-elif [ "$role" = "queue" ]; then
-    echo "Running the queue ... "
-    php /var/www/artisan queue:work --verbose --tries=3 --timeout=180
-elif [ "$role" = "websocket" ]; then
-    echo "Running the websocket server ... "
-    php artisan websockets:serve
+# Optimize Laravel
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+
+if [ "$CONTAINER_ROLE" = "app" ]; then
+if [ "$RUN_MIGRATIONS" = "true" ]; then
+php artisan migrate --force
+fi
+
+
+php artisan config:cache
+php artisan route:cache
+
+
+echo "Starting Nginx + PHP-FPM"
+php-fpm -D
+nginx -g 'daemon off;'
+
+
+elif [ "$CONTAINER_ROLE" = "queue" ]; then
+echo "Starting Queue Worker"
+php artisan queue:work --sleep=3 --tries=3 --timeout=180
+
+
+elif [ "$CONTAINER_ROLE" = "websocket" ]; then
+echo "Starting WebSocket Server"
+php artisan websockets:serve
 fi
