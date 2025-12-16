@@ -1,79 +1,73 @@
 version: "3.9"
 
-
 services:
-app:
-image: vaibhavyudiz/chat-app:v1
-container_name: chat_app
-restart: always
-env_file:
-- .env
-environment:
-APP_ENV: production
-CONTAINER_ROLE: app
-RUN_MIGRATIONS: "false"
-ports:
-- "80:80"
-depends_on:
-database:
-condition: service_healthy
-redis:
-condition: service_started
+  app:
+    image: vaibhavyudiz/c2:latest
+    container_name: chat_app
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      CONTAINER_ROLE: app
+      RUN_MIGRATIONS: "false"
+    ports:
+      - "80:80"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
+  websocket:
+    image: vaibhavyudiz/c2:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      CONTAINER_ROLE: websocket
+    ports:
+      - "6001:6001"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-websocket:
-image: vaibhavyudiz/chat-app:v1
-restart: always
-env_file:
-- .env
-environment:
-APP_ENV: production
-CONTAINER_ROLE: websocket
-ports:
-- "6001:6001"
-depends_on:
-database:
-condition: service_healthy
-redis:
-condition: service_started
+  queue:
+    image: vaibhavyudiz/c2:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      CONTAINER_ROLE: queue
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
+  database:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_PASSWORD}"]
+      interval: 5s
+      retries: 10
 
-queue:
-image: vaibhavyudiz/chat-app:v1
-restart: always
-env_file:
-- .env
-environment:
-APP_ENV: production
-CONTAINER_ROLE: queue
-depends_on:
-database:
-condition: service_healthy
-redis:
-condition: service_started
-
-
-database:
-image: mysql:8.0
-restart: always
-environment:
-MYSQL_DATABASE: ${DB_DATABASE}
-MYSQL_USER: ${DB_USERNAME}
-MYSQL_PASSWORD: ${DB_PASSWORD}
-MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-volumes:
-- db-data:/var/lib/mysql
-healthcheck:
-test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_PASSWORD}"]
-interval: 5s
-retries: 10
-
-
-redis:
-image: redis:alpine
-restart: always
-command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
-
+  redis:
+    image: redis:alpine
+    restart: always
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
 
 volumes:
-db-data:
+  db-data:
